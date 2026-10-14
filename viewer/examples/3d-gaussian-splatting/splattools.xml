@@ -1,0 +1,698 @@
+<krpano>
+	
+	<!-- allow middle/right-clicks on buttons -->
+	<control layermousebuttons="7" />
+
+	<!-- screenshots -->
+	<include url="screenshot.xml" />
+
+
+	<!-- controls design -->
+	<splattools
+		accentcolor="0x4284FF"
+		bgborder="link:accentcolor:'1 '+accentcolor"
+		bgcolor="0x333333"
+		bgcolor_button_onover="0x707070"
+		bgcolor_button_ondown="0x555555"
+		bgalpha="1.0"
+		bgroundedge="2"
+		bgblur="0"
+		bgshadow="0 10 30 0x000000 0.5"
+		txtshadow="0 1 1 0, 1 0 1 0"
+		css="color:#FFFFFF;"
+		/>
+		
+	<!-- provide a design for combobox layers -->
+	<combobox_design name="splattools" margin="2" open_close_speed="0.25">
+		<style name="combobox_container_style"
+			   bgalpha="link:splattools.bgalpha"
+			   bgcolor="link:splattools.bgcolor"
+			   bgborder="link:splattools.bgborder"
+			   bgroundedge="link:splattools.bgroundedge"
+			   bgshadow="link:splattools.bgshadow"
+			   bgblur="link:splattools.bgblur"
+			   />
+		<style name="combobox_marker_style"
+			   css="color:#FFFFFF;"
+			   bg="false"
+			   txtshadow="0 0 2 0x000000 1"
+			   />
+		<style name="combobox_item_style"
+			   css="link:splattools.css"
+			   padding="4 4"
+			   bg="false"
+			   bgcolor="link:splattools.bgcolor_button_onover"
+			   bgalpha="1.0"
+			   bgroundedge="link:splattools.bgroundedge"
+			   txtshadow="link:splattools.txtshadow"
+			   />
+	</combobox_design>
+	
+
+	<!-- viewpoint variables -->
+	<splattools
+		viewpointsplaying.bool="false"
+		viewpointsfadein.number="0.0"
+		viewpointsplayspeed.number="1.0"
+		viewpointsplayspeed.onchange="delayedcall(viewpointsplayspeed,0,if(viewpointsplaying, splattools_playviewpoints(); ));;"
+		viewpointtimeline.number="0.0"
+		viewpointtimeline.onchange="splattools_interpolateviewpoints(get(viewpointtimeline));"
+		/>
+
+	<!-- info text -->
+	<layer name="splattools_infos" keep="true"
+		type="text"
+		align="righttop" x="8" y="8"
+		bg="false"
+		css="font-family:monospace; color:#FFFFFF; font-size:12px;"
+		trimwhitespace="true"
+		txtshadow="link:splattools.txtshadow"
+		textalign="right"
+		template1="
+			{{display.currentfps_int}} FPS[br]
+			{{display.splats.debuginfo.splatcount:formatnumber(display.splats.debuginfo.splatcount,0,' ')}} Splats[br]
+			{{progress.progress:progress.progress LT 1.0 ? roundval(progress.progress*100) + ' %[br]' : ''}}
+			"
+		template2="
+			[div style='height:3px;'][/div]
+			pos={{view.tx:roundval(view.tx,1)}},{{view.ty:roundval(view.ty,1)}},{{view.tz:roundval(view.tz,1)}}[br]
+			lookat={{view.hlookat:roundval(view.hlookat,1)}},{{view.vlookat:roundval(view.vlookat,1)}}[br]
+			fov={{view.fov:roundval(view.hfov,1)+'x'+roundval(view.vfov,1)}}[br]
+			[div style='height:3px;'][/div]
+			sort={{display.splats.debuginfo.t_sort}}, gput={{display.splats.debuginfo.t_indexupload}}[br]
+			"
+		template3="
+			[div style='height:3px;'][/div]
+			{{display.splats.debuginfo.details}}
+			"
+		onloaded="template=template1;"
+		onclick="switch(template, (template1), (template1+template2), (template1+template2+template3));"
+		/>
+
+	<!-- UI elements -->
+	<style name="window"
+		type="container"
+		bgborder="relink:splattools.bgborder"
+		bgcolor="relink:splattools.bgcolor"
+		bgalpha="relink:splattools.bgalpha"
+		bgshadow="relink:splattools.bgshadow"
+		bgroundedge="relink:splattools.bgroundedge"
+		bgcapture="true"
+		flowchildren="v"
+		childflowspacing="4"
+		childmargin="7"
+		ondown="splattools_dragtool();"
+		/>
+		
+	<style name="subtitle" type="text"  textalign="bottom" width="100%"
+		bgcolor="relink:splattools.accentcolor" css="color:white;"
+		txtshadow="relink:splattools.txtshadow"
+		capture="false"
+		/>
+
+	<style name="panel"
+		type="container"
+		flowchildren="v"
+		childflowspacing="1"
+		maskchildren="true"
+		width="100%"
+		capture="false"
+		/>
+
+	<style name="control"
+		type="text"
+		css="color:#FFFFFF; text-transform:capitalize;"
+		padding="4"
+		bgbordermode="inside"
+		bgroundedge="1"
+		width="100%"
+		txtshadow="relink:splattools.txtshadow"
+		bgnormcolor="relink:splattools.bgcolor"
+		bgovercolor="relink:splattools.bgcolor_button_onover"
+		bgdowncolor="relink:splattools.bgcolor_button_ondown"
+		onloaded.addevent="bgcolor=bgnormcolor;"
+		ondown.addevent="bgcolor=bgdowncolor;"
+		onup.addevent="bgcolor=hovering?bgovercolor:bgnormcolor;"
+		onover.addevent="if(!pressed AND !pressedelement,bgcolor=bgovercolor);"
+		onout.addevent="if(!pressed AND !pressedelement,bgcolor=bgnormcolor);"
+		/>
+
+	<style name="dragcontrol" style="control"
+		onloaded.addevent="dragcontrol_init"
+		cursor="col-resize"
+		/>
+
+	<action name="dragcontrol_init" type="js"><![CDATA[
+
+		caller.template += "[div style='float:right']⇿[/div]";
+
+		caller.addevent("ondown", function()
+		{
+			krpano.asyncloop(function()
+			{
+				var dragscale = Number(caller.dragscale) || 0.01;
+				if      (krpano.mouse.shiftkey) dragscale *= 10;
+				else if (krpano.mouse.ctrlkey)  dragscale /= 10;
+
+				var value = krpano.get(caller.value) + krpano.mouse.dx * dragscale;
+
+				var min = Number(caller.valuemin);
+				var max = Number(caller.valuemax);
+				if (!isNaN(min) && value < min) value = min;
+				if (!isNaN(max) && value > max) value = max;
+
+				krpano.set(caller.value, value)
+
+				return caller.pressed;
+			});
+		});
+
+		caller.addevent("ondoubleclick", function()
+		{
+			var valuereset = caller.valuereset;
+			if (!isNaN(valuereset))
+			{
+				krpano.tween(caller.value, valuereset);
+			}
+		});
+
+	]]></action>
+
+
+	<action name="splattools_dragtool">
+		asyncloop(pressed,
+			x += mouse.dx * (contains(align,'right') ? -1 : +1);
+			y += mouse.dy * (contains(align,'bottom') ? -1 : +1);
+		);
+	</action>
+
+
+	<layer name="splattools" keep="true" style="link:window" align="lefttop" x="20" y="20" width="170" zorder="2">
+		<layer style="panel">
+			<layer style="link:subtitle" text="Splat Settings" onloaded.mobile="onclick();" onclick="forall(parentobject.childobjects, o, if(!contains(o.style,'subtitle'),toggle(o.visible)));" />
+			<layer style="control" template="Rendermode: {{display.splats.rendermode}}" onclick="switch(display.splats.rendermode,'perspective','standard');" />
+			<layer style="control" template="Sortmode: {{display.splats.sortmode}}" onclick="if(mouse.button == 0, switch(display.splats.sortmode,'off','depth','distance'); , switch(display.splats.sortmode,'depth','distance'); );" />
+			<layer style="control" template="Debug-draw: {{display.splats.debug:(display.splats.debug BAND 7)}}" onclick="tmp = display.splats.debug BAND 7; if(mouse.button == 0, switch(tmp,0,1,2,3,4,5,6); , switch(tmp,6,5,4,3,2,1,0); ); display.splats.debug = tmp BOR (display.splats.debug BAND 248);" />
+			<layer style="control" template="Debug-depthbuffer: {{display.splats.debug:(display.splats.debug BAND 8) != 0}}" onclick="display.splats.debug = display.splats.debug XOR 8;" />
+			<layer style="dragcontrol" value="display.splats.scale" valuemin="0.001" valuemax="1" valuereset="1" template="Splatscale: {{display.splats.scale:roundval(display.splats.scale,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.antialias" valuemin="0" valuemax="4" valuereset="0.3" template="Antialias: {{image.splats.antialias:roundval(image.splats.antialias,-1)}}" />
+			<layer style="dragcontrol" value="display.framebufferscale" valuemin="0.1" valuemax="1" valuereset="1" template="Resolution: {{display.framebufferscale:roundval(display.framebufferscale*100)+'%'}}" />
+			<layer style="control" template="Point Cloud: {{display.splats.scale:display.splats.scale LT 0.01 ? 'On' : 'Off'}}" onclick="if(display.splats.scale GT 0.01, tween(display.splats.scale,0.001);tween(image.splats.antialias,1.5); , tween(display.splats.scale,1);tween(image.splats.antialias,0.3); );" />
+			<layer if="0" style="control" template="unpackcply: {{display.splats.unpackcply}}" onclick="switch(display.splats.unpackcply);" />
+			<layer style="control" template="Order: {{display.splats.renderorder:display.splats.renderorder == 0 ? 'Splats ❯ Hotspots' : 'Hotspots ❯ Splats'}}" onclick="switch(display.splats.renderorder,0,1);" />
+		</layer>
+		<layer style="panel">
+			<layer style="link:subtitle" text="Splat Model" onloaded="onclick();" onclick="forall(parentobject.childobjects, o, if(!contains(o.style,'subtitle'),toggle(o.visible)));" />
+			<layer style="dragcontrol" value="image.splats.scale" valuereset="1.0" template="scale: {{image.splats.scale:roundval(image.splats.scale,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.tx" valuereset="0.0" dragscale="0.5" template="tx: {{image.splats.tx:roundval(image.splats.tx,-1)}}" />
+			<layer style="dragcontrol" value="image.splats.ty" valuereset="0.0" dragscale="0.5" template="ty: {{image.splats.ty:roundval(image.splats.ty,-1)}}" />
+			<layer style="dragcontrol" value="image.splats.tz" valuereset="0.0" dragscale="0.5" template="tz: {{image.splats.tz:roundval(image.splats.tz,-1)}}" />
+			<layer style="dragcontrol" value="image.splats.rx" valuereset="0.0" dragscale="0.1" template="rx: {{image.splats.rx:roundval(image.splats.rx,-1)}}" />
+			<layer style="dragcontrol" value="image.splats.ry" valuereset="0.0" dragscale="0.1" template="ry: {{image.splats.ry:roundval(image.splats.ry,-1)}}" />
+			<layer style="dragcontrol" value="image.splats.rz" valuereset="0.0" dragscale="0.1" template="rz: {{image.splats.rz:roundval(image.splats.rz,-1)}}" />
+			<layer style="control" template="rotationorder: {{image.splats.rotationorder}}" onclick="switch(image.splats.rotationorder, 'xyz', 'xzy', 'yxz', 'yzx', 'zxy', 'zyx');" />
+			<layer style="control" text="Get XML (Clipboard)" onclick="splattools_getimagexml();" />
+		</layer>
+		<layer style="panel">
+			<layer style="subtitle" text="Control Settings" onloaded.mobile="onclick();" onclick="forall(parentobject.childobjects, o, if(!contains(o.style,'subtitle'),toggle(o.visible)));" />
+			<layer style="control" template="Camera: {{view.oz:view.oz GT 100 ? 'object rotate' : (view.oz == 0 ? 'first person' : 'parallax view')}}" onclick="toggle_camera_mode();" />
+			<layer style="control" template.mouse="Mouse wheel: {{control.wheelmode}}" template.touch="Zoom gesture: {{control.wheelmode}}" onclick="switch(control.wheelmode, 'zoom', 'dolly zoom', 'distance', 'move', 'viewpoints');" />
+			<layer style="dragcontrol" value="view.oz" valuemin="0" valuereset="0" dragscale="1" template="Object distance: {{view.oz:roundval(view.oz,1)}}" ondown="if(control.wheelmode == 'dolly zoom', control.wheelmode='distance'; );" />
+			<layer style="dragcontrol" value="view.fov" valuemin="1" valuemax="179" valuereset="120" dragscale="0.1" devices="desktop" template="FOV: {{view.fov:roundval(view.fov,1)}}" />
+			<layer style="dragcontrol" value="view.fisheye" valuemin="0" valuemax="1" valuereset="0" dragscale="0.001" devices="desktop" template="Fisheye: {{view.fisheye:roundval(view.fisheye,-2)}}" />
+			<layer style="control" template="Move mode: {{control.movemode}}" onclick="switch(control.movemode, 'walking', 'flying');" />
+			<layer style="dragcontrol" value="control.speed" valuemin="0.01" valuemax="10" valuereset="0.5" template="Move speed: {{control.speed:roundval(control.speed,-2)}}" />
+		</layer>
+		<layer style="panel" devices="desktop.and.no-mobilevr">
+			<layer style="subtitle" text="Tools" onclick="forall(parentobject.childobjects, o, if(!contains(o.style,'subtitle'),toggle(o.visible)));" />
+			<layer style="control" text="Viewpoints Tool" onclick="switch(layer[splattools_viewpoints].visible)" />
+			<layer style="control" text="Adjust Colors" onclick="add_color_shader(); switch(layer[splattools_colors].visible)" />
+			<layer style="control" text="Make Screenshot" onclick="makescreenshot()" />
+			<layer style="control" text="Make Thumbnail" onclick="makescreenshot('image', 240,240)" />
+			<layer style="control" text="Make Pano" onclick="makescreenshot('pano')" />
+		</layer>
+	</layer>
+
+
+	<layer name="splattools_viewpoints" keep="true" visible="false" style="link:window" align="lefttop" x="200" y="20" width="170" zorder="2" devices="desktop">
+		<layer style="panel">
+			<layer style="subtitle" text="Viewpoints" onclick="forall(parentobject.childobjects, o, if(!contains(o.style,'subtitle'),toggle(o.visible)));" />
+			<layer style="control" text="Get XML (Clipboard)" onclick="splattools_getviewpointsxml();" />
+			<layer style="control" text="Play Viewpoints" onclick="splattools_playviewpoints();" />
+			<layer style="dragcontrol" value="splattools.viewpointsplayspeed" valuemin="0.01" valuemax="10" valuereset="0.5" template="Play speed: {{splattools.viewpointsplayspeed:roundval(splattools.viewpointsplayspeed,-2)}}" />
+			<layer style="control" text="Add Viewpoint" onclick="splattools_addviewpoint();" />
+			<layer type="container" width="100%" bgborder="1,0,0,0 0xFFFFFF 0.5">
+				<layer name="splattools_viewpoints_list" type="scrollarea" scrolltype="smooth" width="100%" direction="v" flowchildren="v"
+					onremovechild="if(childobjects.length == 0, parentobject.height=0; );"
+					onresize="parentobject.height=min(height,250);">
+				</layer>
+			</layer>
+		</layer>
+	</layer>
+	
+	<layer name="splattools_colors" keep="true" visible="false" style="link:window" align="right" x="20" width="170" zorder="2">
+		<layer style="panel">
+			<layer style="link:subtitle" text="Adjust Colors" onclick="switch(image.splats.shader, '', get(action[splats_colors_shader].content)); switch(bgcolor, get(splattools.accentcolor), get(splattools.bgcolor_button_ondown));" />
+			<layer style="dragcontrol" value="image.splats.brightness" dragscale="0.002" valuemin="-1" valuemax="10" valuereset="0" template="Brightness: {{image.splats.brightness:roundval(image.splats.brightness,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.contrast" dragscale="0.002" valuemin="0.01" valuemax="100" valuereset="1" template="Contrast: {{image.splats.contrast:roundval(image.splats.contrast,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.gamma" dragscale="0.002" valuemin="0.01" valuemax="100" valuereset="1" template="Gamma: {{image.splats.gamma:roundval(image.splats.gamma,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.blacklevel" dragscale="0.002" valuemin="-1" valuemax="1" valuereset="0" template="blacklevel: {{image.splats.blacklevel:roundval(image.splats.blacklevel,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.whitelevel" dragscale="0.002" valuemin="-1" valuemax="2" valuereset="1" template="whitelevel: {{image.splats.whitelevel:roundval(image.splats.whitelevel,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.intensity" dragscale="0.002" valuemin="0.01" valuemax="10" valuereset="1" template="Intensity: {{image.splats.intensity:roundval(image.splats.intensity,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.saturate" dragscale="0.002" valuemin="0.0" valuemax="2" valuereset="1" template="Saturate: {{image.splats.saturate:roundval(image.splats.saturate,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.vibrance" dragscale="0.002" valuemin="-2.0" valuemax="+2.0" valuereset="0" template="Vibrance: {{image.splats.vibrance:roundval(image.splats.vibrance,-3)}}" />
+			<layer style="dragcontrol" value="image.splats.temp" dragscale="0.002" valuemin="-1" valuemax="+1" valuereset="0" template="Temperature: {{image.splats.temp:(image.splats.temp GT 0 ? '+' : '') + roundval(image.splats.temp,-2)}}" />
+			<layer style="dragcontrol" value="image.splats.tint" dragscale="0.002" valuemin="-1" valuemax="+1" valuereset="0" template="Tint: {{image.splats.tint:(image.splats.tint GT 0 ? '+' : '') + roundval(image.splats.tint,-2)}}" />
+			<layer style="dragcontrol" value="image.splats.alpha" dragscale="0.002" valuemin="0.01" valuemax="1" valuereset="1" template="Alpha: {{image.splats.alpha:roundval(image.splats.alpha,-3)}}" />
+		</layer>
+	</layer>
+	
+	<events name="splattools_colors_scenechange" keep="true"
+		onxmlcomplete="if(layer[splattools_colors].visible, add_color_shader() );"
+		/>
+	
+	<action name="add_color_shader">
+		if(!isvalue(image.splats.brightness),
+			set(image.splats, 
+				brightness=0.0, contrast=1.0, gamma=1.0, blacklevel=0.0, whitelevel=1.0, intensity=1.0,
+				saturate=1.0, vibrance=0.0, temp=0.0, tint=0.0,
+				alpha=1.0,
+				shader=get(action[splats_colors_shader].content)
+			);
+		);
+	</action>
+	
+	<action name="splats_colors_shader" type="glsl"><![CDATA[
+		
+		uniform float brightness, contrast, gamma, blacklevel, whitelevel, saturate, vibrance, intensity;
+		uniform float temp, tint;
+		uniform float alpha;
+		
+		// CYT colorspace (by krpano): colortemperature(x) / luminance(y) / tint(z) 
+		// - a rotated and scaled YUV colorspace: YUV => UYV + rotated and scaled UV:
+		//   - the U(x) axis is for colortemperature changes
+		//   - the Y(y) axis is for luminance changes
+		//   - the V(z) axis is for tint changes
+		// - note: the tint axis is scaled 0.5x of the colortemperature axis
+		const mat3 rgb2cyt = mat3(2.295031, -0.745666, -1.549365, 0.299, 0.587, 0.114, 2.614040, -4.702415, 2.088374);
+		const mat3 cyt2rgb = mat3(0.199272, 1.0, 0.093252, -0.036937, 1.0, -0.082049, -0.332435, 1.0, 0.177597);
+		const mat3 skintones = mat3(1.76777, -3.53553, 0.02298, 1.76777, 3.53553, -2.19026, 0.0, 0.0, 0.0);
+
+		void splatshader (inout vec4 pos, inout mat3 mx, inout vec4 color)
+		{
+			// convert to CYT colorspace: x=colortemperature, y=luminance, z=tint
+			vec3 c = color.rgb * rgb2cyt;
+			
+			// adjust luminance
+			c.y += brightness;
+			c.y = (c.y - 0.5) * contrast + 0.5;
+			c.y = pow(c.y, 1.0 / gamma);
+			c.y += blacklevel * (1.0 - c.y)*(1.0 - c.y);
+			c.y += (whitelevel - 1.0) * c.y*c.y;
+			c.y *= intensity;
+			
+			// adjust colors
+			c.xz *= max(0.0, saturate + vibrance * smoothstep(1.0, 3.0, length(vec3(c.xz,1) * skintones)) * smoothstep(0.0, 1.0, 1.0 - length(c.xz * vec2(0.4,0.2))));
+			c.x += temp;
+			c.z += tint;
+		
+			// convert back to RGB, and avoid negative color values (important for some GPUs)
+			color.rgb = max(c * cyt2rgb, 0.0);
+
+			// adjust alpha/transparency 
+			color.a *= alpha;
+		}
+		
+	]]></action>
+
+
+
+	<krpano idletime="7" />
+
+
+	<events name="splattools_events" keep="true"
+		onremovepano="delete(viewpoint); splattools.viewpointsplayspeed=1.0;"
+		onxmlcomplete="splattools_scene_setup();"
+		onnewpano="suppresserrors( forall(layer,l, if(l.template AND l.relinktemplate, l.relinktemplate())); );"
+		/>
+		
+		
+	<action name="toggle_camera_mode">
+		if(view.oz GT 100, view.adjustoffset(0,0,0);
+		  ,view.oz == 0, view.adjustoffset(0,0,30);
+		  ,view.oz GT 0, view.adjustoffset(0,0,(xml.view.oz GT 30 ? xml.view.oz : 200));
+		);
+	</action>
+
+
+	<action name="splattools_scene_setup">
+		if(viewpoint.count GT 0,
+			forall(viewpoint, vp,
+				splattools_addviewpoint(get(vp));
+			);
+		);
+	</action>
+	
+	
+	<action name="splattools_getimagexml" type="js"><![CDATA[
+		
+		var xmltemplate = {
+			ox:0, oy:0, oz:0,
+			rx:0, ry:0, rz:0, rotationorder:"XYZ",
+			splats:{
+				url:"",
+				scale:1,
+				tx:0, ty:0, tz:0,
+				rx:0, ry:0, rz:0, rotationorder:"YXZ",
+				antialias:0.3
+			}
+		};
+		
+		var xml = krpano.utils.objtoxml("image", krpano.image, {children:true, multiline:false, template:xmltemplate});
+		
+		if (navigator.clipboard)
+		{
+			navigator.clipboard.writeText(xml);
+		}
+		else
+		{
+			krpano.trace("xml code for the image:\n" + xml);
+			krpano.actions.showlog();
+		}
+
+	]]></action>
+
+	<action name="splattools_getviewpointsxml" type="js"><![CDATA[
+
+		if (!krpano.viewpoint)
+			return;
+
+		var viewpoints = krpano.viewpoint.getArray();
+		var cnt = viewpoints.length;
+		
+		if (cnt <= 0)
+			return;
+			
+		var i, xml = "";
+
+		var viewpointsplayspeed = krpano.splattools.viewpointsplayspeed;
+		if (viewpointsplayspeed != 1.0)
+		{
+			xml += '<splattools viewpointsplayspeed="' + krpano.roundNumber(viewpointsplayspeed,-2) + '" />\n';
+		}
+
+		for (i=0; i < cnt; i++)
+		{
+			var vp = viewpoints[i];
+			xml += krpano.utils.objtoxml("viewpoint", vp, {accuracy:2}) + "\n";
+		}
+	
+		if (navigator.clipboard)
+		{
+			navigator.clipboard.writeText(xml);
+		}
+		else
+		{
+			krpano.trace("xml code for the scene viewpoints:\n" + xml);
+			krpano.actions.showlog();
+		}
+
+	]]></action>
+	
+
+
+	<!-- a very simple viewpoint demo implementation -->
+	<action name="splattools_addviewpoint" type="js" args="viewpointitem"><![CDATA[
+
+		krpano.createarray("viewpoint");
+		
+		krpano.set("layer[viewpoint_buttons].visible", true);
+
+		var view = krpano.view;
+
+		if (!viewpointitem)
+		{
+			var largestnumber = 0;
+			
+			krpano.viewpoint.forEach( function(item,index)
+			{
+				if (item.name.toLowerCase().indexOf("viewpoint ") == 0 )
+				{
+					largestnumber = Math.max(largestnumber, item.name.slice(10) | 0);
+				}
+			});
+		
+			viewpointitem = krpano.viewpoint.createarrayitem( "Viewpoint "  + (largestnumber+1) );
+			viewpointitem.tx = view.tx;
+			viewpointitem.ty = view.ty;
+			viewpointitem.tz = view.tz;
+			viewpointitem.oz = view.oz;
+			viewpointitem.hlookat = view.hlookat;
+			viewpointitem.vlookat = view.vlookat;
+			viewpointitem.fov = view.fov;
+			viewpointitem.fisheye = view.fisheye;
+			viewpointitem.architectural = view.architectural;
+		}
+
+		var l = krpano.addlayer(viewpointitem.name);
+		l.parent = "splattools_viewpoints_list";
+		l.loadstyle("control");
+		l.text = viewpointitem.name;
+		l.view = viewpointitem;
+		l.oneditchange = function()
+		{
+			var oldname = l.view.name;
+			var newname = l.text.toLowerCase();
+			
+			if (!isNaN(Number(newname))) newname = oldname;
+			
+			if (newname != oldname)
+			{
+				krpano.viewpoint.renameItem(oldname, newname);
+				krpano.layer.renameItem(oldname, newname);
+			}
+		};
+		l.onclick = function()
+		{
+			krpano.stoptween("splattools.viewpointtimeline");
+			view.hlookat = krpano.functions.adjust360(view.hlookat, l.view.hlookat);
+			krpano.tween(view, l.view, 1.0, "smooth");
+		}
+
+		var x = krpano.addlayer();
+		x.parent = l.path;
+		x.loadstyle("control");
+		x.text = "x";
+		x.width = "";
+		x.align = "right";
+		x.onclick = function()
+		{
+			krpano.viewpoint.removeItem(l.view.index);
+			l.remove();
+		}
+		
+		var t = krpano.addlayer();
+		t.parent = l.path;
+		t.loadstyle("control");
+		t.text = "T";
+		t.width = "";
+		t.align = "right";
+		t.x = 16;
+		t.onclick = function()
+		{
+			l.startediting(true);
+		}
+
+	]]></action>
+
+
+	<action name="splattools_playviewpoints" scope="local">
+		if(viewpoint.count GT 1,
+			loops = 1000;
+			timeperviewpoint = 2.0;
+			splattools_nextviewpoint( (viewpoint.count*loops), (viewpoint.count*loops*timeperviewpoint), "linear");
+		);
+	</action>
+
+	<action name="splattools_snaptonearestviewpoint" type="js"><![CDATA[
+
+		if (!krpano.viewpoint)
+			return;
+
+		var view = krpano.view;
+		var viewpoints = krpano.viewpoint.getArray();
+		var cnt = viewpoints.length;
+		var i, besti=-1, bestd=-1;
+
+		for (i=0; i < cnt; i++)
+		{
+			var vp = viewpoints[i];
+
+			var d = Math.sqrt( (vp.tx - view.tx)**2 + (vp.ty - view.ty)**2 + (vp.tz - view.tz)**2 );
+
+			if (besti < 0 || d < bestd)
+			{
+				besti = i;
+				bestd = d;
+			}
+		}
+
+		krpano.splattools.viewpointsfadein = 0.0;
+		krpano.splattools.viewpointtimeline = besti;
+
+	]]></action>
+
+
+	<action name="splattools_interpolateviewpoints" type="js" args="pos"><![CDATA[
+
+		if (!krpano.viewpoint)
+			return;
+
+		function spline (p0, p1, p2, p3, t)
+		{
+			p0 *= 1; p1 *= 1; p2 *= 1; p3 *= 1;	// ensure numbers
+			const v0 = ( p2 - p0 ) * 0.5;
+			const v1 = ( p3 - p1 ) * 0.5;
+			const t2 = t * t;
+			const t3 = t * t2;
+			var result = ( 2 * p1 - 2 * p2 + v0 + v1 ) * t3 + ( - 3 * p1 + 3 * p2 - 2 * v0 - v1 ) * t2 + v0 * t + p1;
+			return result;
+		}
+		
+		var viewpoints = krpano.viewpoint.getArray();
+		var cnt = viewpoints.length;
+
+		if (cnt < 2)
+			return;
+
+		pos = Number(pos);
+
+		var i1 = Math.floor(pos);
+		var t = pos - i1;
+
+		while (i1 < 0) i1 += cnt;
+		i1 = i1 % cnt;
+
+		var i0 = (i1 - 1 + cnt) % cnt;
+		var i2 = (i1 + 1) % cnt;
+		var i3 = (i1 + 2) % cnt;
+
+		var v0 = viewpoints[i0];
+		var v1 = viewpoints[i1];
+		var v2 = viewpoints[i2];
+		var v3 = viewpoints[i3];
+
+		var view = krpano.view;
+
+		var a = krpano.splattools.viewpointsfadein;
+		var b = 1.0 - a;
+
+		view.tx = view.tx*b + a*spline(v0.tx, v1.tx, v2.tx, v3.tx, t);
+		view.ty = view.ty*b + a*spline(v0.ty, v1.ty, v2.ty, v3.ty, t);
+		view.tz = view.tz*b + a*spline(v0.tz, v1.tz, v2.tz, v3.tz, t);
+		view.oz = view.oz*b + a*spline(v0.oz, v1.oz, v2.oz, v3.oz, t);
+
+		// hlookat needs a special handling to take the shortest path because of its 360 wrap around
+		var hlookat2 = v2.hlookat;
+		var hlookat1 = krpano.functions.adjust360(v1.hlookat,hlookat2);
+		var hlookat0 = krpano.functions.adjust360(v0.hlookat,hlookat1);
+		var hlookat3 = krpano.functions.adjust360(v3.hlookat,hlookat2);
+		var hlookatS = spline(hlookat0, hlookat1, hlookat2, hlookat3, t);
+		var hlookatV = krpano.functions.adjust360(view.hlookat,hlookatS);
+		view.hlookat = hlookatV*b + a*hlookatS;
+
+		view.vlookat = view.vlookat*b + a*spline(v0.vlookat, v1.vlookat, v2.vlookat, v3.vlookat, t);
+		view.fov = view.fov*b + a*spline(v0.fov, v1.fov, v2.fov, v3.fov, t);
+		view.fisheye = view.fisheye*b + a*krpano.clampNumber(spline(v0.fisheye, v1.fisheye, v2.fisheye, v3.fisheye, t), 0, 1);
+		view.architectural = view.architectural*b + a*krpano.clampNumber(spline(v0.architectural, v1.architectural, v2.architectural, v3.architectural, t), 0, 1);
+
+	]]></action>
+
+
+
+	<!-- add a control mode for changing the viewpoints using the mouse-wheel -->
+	<control wheelmode.onchange="if(wheelmode == 'viewpoints', control.mousefovchange=0; );" />
+	<events onwheel="if(control.wheelmode == 'viewpoints', splattools_nextviewpoint((wheeldelta GT 0 ? -1 : +1), 1.0, default); );" />
+
+
+	<action name="splattools_nextviewpoint" scope="local" args="next, time, tweentype, interruptable">
+
+		if(viewpoint.count GT 1,
+
+			if(splattools.viewpointsplaying == false,
+				splattools_snaptonearestviewpoint();
+				splattools.viewpointsplaying = true;
+				splattools.viewpointsfadein = 0.0;
+				tween(splattools.viewpointsfadein, 1.0, 0.5, "default");
+			);
+
+			nexttimelinepos = next GT 0 ? ceil(splattools.viewpointtimeline + 1*next) : floor(splattools.viewpointtimeline + 1*next);
+
+			if(!isset(time), time=1.0; );
+
+			time /= splattools.viewpointsplayspeed;
+
+			if(interruptable != false,
+				events.add("splattools_stop_playing", "onviewinteraction",
+					if (lastviewinteraction != "mousewheel",
+						events.remove("splattools_stop_playing");
+						tween(splattools.viewpointsfadein, 0.0, 0.5, default,
+							stoptween(splattools.viewpointtimeline);
+							splattools.viewpointsplaying=false;
+						);
+					);
+				);
+			);
+
+			tween(splattools.viewpointtimeline, get(nexttimelinepos), get(time), get(tweentype), splattools.viewpointsplaying=false; );
+		);
+
+	</action>
+
+
+	<!-- buttons for switching, playing the viewpoints -->
+	<layer name="viewpoint_buttons" type="container" width="100%" height="100%" keep="true" visible="link:event.onnewscene:viewpoint.count GT 0">
+		<layer name="prev_viewpoint"
+			url="vtourskin.png"
+			crop="0|64|64|64"
+			dropshadow="0 0 2 0x000000 1.0"
+			scale="0.5"
+			alpha="0.3"
+			align="left" x="5"
+			onover="tween(alpha,(pressed ? 0.8 : 0.5));"
+			onout="tween(alpha,0.3,0.5);"
+			ondown="tween(alpha,0.8,0.1);"
+			onup="tween(alpha,(hovering ? 0.5 : 0.3),0.1));"
+			onclick="splattools_nextviewpoint(-1);"
+			/>
+
+		<layer name="next_viewpoint"
+			url="vtourskin.png"
+			crop="64|64|64|64"
+			dropshadow="0 0 2 0x000000 1.0"
+			scale="0.5"
+			alpha="0.3"
+			align="right" x="5"
+			onover="tween(alpha,(pressed ? 0.8 : 0.5));"
+			onout="tween(alpha,0.3,0.5);"
+			ondown="tween(alpha,0.8,0.1);"
+			onup="tween(alpha,(hovering ? 0.5 : 0.3),0.1));"
+			onclick="splattools_nextviewpoint(+1);"
+			/>
+
+		<layer name="play_viewpoints"
+			url="vtourskin.png"
+			crop="0|640|64|64"
+			dropshadow="0 0 2 0x000000 1.0"
+			scale="0.66"
+			alpha="0.5"
+			align="leftbottom" x="20" y="92"
+			onover="tween(alpha, 0.8);"
+			onout="tween(alpha,0.5,0.5);"
+			ondown="tween(alpha,1.0,0.1);"
+			onup="tween(alpha,(hovering ? 0.8 : 0.5),0.1));"
+			onclick="splattools_playviewpoints();"
+			/>
+	</layer>
+
+</krpano>
