@@ -11,6 +11,7 @@ const data=await new Response(decompressed).arrayBuffer();
 if(data.byteLength!==manifest.bytes)throw Error('Descarga incompleta');
 const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');if(hash!==manifest.sha256)throw Error('La verificación del archivo falló');
 const modelurl=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}))+'#murales.ply';
-embedpano({xml:'murales.xml',target:'pano',html5:'only',webglsettings:{antialias:false},initvars:{modelurl},onerror:()=>{status.textContent='No se pudo iniciar el visor.'}});
+document.getElementById('loading').hidden=true;
+embedpano({xml:'murales.xml',target:'pano',html5:'only',webglsettings:{antialias:false},initvars:{modelurl},onerror:()=>{document.getElementById('loading').hidden=false;status.textContent='No se pudo iniciar el visor.'}});
 }catch(e){status.textContent=e.message+' · Recarga la página para reintentar.'}})();
 </script></body></html>
