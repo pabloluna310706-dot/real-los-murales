@@ -1,0 +1,240 @@
+<krpano>
+
+	<action name="makescreenshot_init" type="js" autorun="onstart" usestrictjs="false"><![CDATA[
+
+		// count the screenshots (for the filenames)
+		var makescreenshot_count = 1;
+		var makescreenshot_format = "Jpeg";
+		var makescreenshot_quality = 85;
+		var makescreenshot_cubesize = 1024;
+
+		// add a 'makescreenshot' action to krpano
+		krpano.makescreenshot = function(type, screenshotwidth, screenshotheight, imageformat)
+		{
+			if (!krpano.webGL)
+			{
+				krpano.actions.error("WebGL required!");
+				return;
+			}
+		
+			// if there is already a screenshot layer, remove it now
+			krpano.call("removelayer(screenshot,true)");
+
+			// make a screenshot as canvas
+			var sizeinfo = {w:0, h:0};
+			
+			var backup = {
+				limitview : krpano.view.limitview,
+				fovtype : krpano.view.fovtype,
+				fov : krpano.view.fov,
+				fovmin : krpano.view.fovmin,
+				fovmax : krpano.view.fovmax,
+				maxpixelzoom : krpano.view.maxpixelzoom,
+				hlookat : krpano.view.hlookat,
+				vlookat : krpano.view.vlookat,
+				camroll : krpano.view.camroll,
+				fisheye : krpano.view.fisheye,
+				architectural : krpano.view.architectural,
+				tx : krpano.view.tx,
+				ty : krpano.view.ty,
+				tz : krpano.view.tz,
+				oz : krpano.view.oz
+			};
+			
+			
+			var screenshots = [];
+			
+			if ( type == 'pano' )
+			{
+				krpano.view.limitview = "off";
+				krpano.view.fovtype = "VFOV";
+				krpano.view.maxpixelzoom = 0;
+				krpano.view.fov = krpano.view.fovmin = krpano.view.fovmax = 90;
+				krpano.view.camroll = 0;
+				krpano.view.fisheye = 0;
+				krpano.view.architectural = 0;
+				krpano.view.tx -= krpano.view.ox_rotated;
+				krpano.view.ty -= krpano.view.oy_rotated;
+				krpano.view.tz -= krpano.view.oz_rotated;
+				krpano.view.oz = 0;
+				
+				var cubesize = screenshotwidth ? 1*screenshotwidth : makescreenshot_cubesize;
+				makescreenshot_cubesize = cubesize;
+				
+				krpano.view.hlookat = -90; krpano.view.vlookat = 0;
+				screenshots.push( krpano.webGL.makeScreenshot(cubesize, cubesize, true, "canvas", 0, null, sizeinfo) );
+				
+				krpano.view.hlookat = 0; krpano.view.vlookat = 0;
+				screenshots.push( krpano.webGL.makeScreenshot(cubesize, cubesize, true, "canvas", 0, null, sizeinfo) );
+				
+				krpano.view.hlookat = +90; krpano.view.vlookat = 0;
+				screenshots.push( krpano.webGL.makeScreenshot(cubesize, cubesize, true, "canvas", 0, null, sizeinfo) );
+				
+				krpano.view.hlookat = +180; krpano.view.vlookat = 0;
+				screenshots.push( krpano.webGL.makeScreenshot(cubesize, cubesize, true, "canvas", 0, null, sizeinfo) );
+				
+				krpano.view.hlookat = 0; krpano.view.vlookat = -90;
+				screenshots.push( krpano.webGL.makeScreenshot(cubesize, cubesize, true, "canvas", 0, null, sizeinfo) );
+				
+				krpano.view.hlookat = 0; krpano.view.vlookat = +90;
+				screenshots.push( krpano.webGL.makeScreenshot(cubesize, cubesize, true, "canvas", 0, null, sizeinfo) );
+			}
+			else
+			{
+				screenshotwidth = 1*screenshotwidth;
+				screenshotheight = 1*screenshotheight;
+				
+				if (isNaN(screenshotwidth)) screenshotwidth = 0;
+				if (isNaN(screenshotheight)) screenshotheight = 0;
+			
+				screenshots.push( krpano.webGL.makeScreenshot(screenshotwidth, screenshotheight, true, "canvas", 0, null, sizeinfo) );
+			}
+
+			// restore view
+			Object.keys(backup).forEach(function(prop)
+			{
+				krpano.view[prop] = backup[prop];
+			});
+
+			
+			if (screenshots.length > 0)
+			{
+				var imagew = sizeinfo.w;
+				var imageh = sizeinfo.h * screenshots.length;
+				
+				var screenshotcanvas = document.createElement('canvas');
+				screenshotcanvas.width = imagew;
+				screenshotcanvas.height = imageh;
+				
+				var ctx = screenshotcanvas.getContext("2d");
+
+				// make imagestrip/cubestrip for multiple images
+				for (var i=0, yp=0; i < screenshots.length; i++)
+				{
+					ctx.drawImage(screenshots[i], 0, yp);
+					yp += sizeinfo.h;
+				}
+
+				// add some krpano layers that show the screenshot and allow saving it
+				var bglayer = krpano.addlayer("screenshot");
+				bglayer.type = "container";
+				bglayer.zorder = 99;
+				bglayer.width = "100%";
+				bglayer.height = "100%";
+				bglayer.bgcolor = 0x000000;
+				bglayer.bgalpha = 0.5;
+				bglayer.bgblur = 5;
+				bglayer.bgcapture = true;
+				bglayer.cursor = "default";
+				bglayer.onclick = "enabled=false; tween(alpha,0,0.2,default,remove());";
+				
+				var screenshot = krpano.addlayer();
+				screenshot.parent = bglayer.path;
+				screenshot.url = screenshotcanvas.toDataURL();
+				screenshot.align = "center";
+				screenshot.width  = imagew > imageh ? "70%" : "prop";
+				screenshot.height = imagew > imageh ? "prop" : "70%";
+				screenshot.bgborder = "12 0xFFFFFF";
+				screenshot.scalemode = "resize";
+				screenshot.ondown = "asyncloop(pressed, ox+=mouse.dx; oy+=mouse.dy;);";
+				screenshot.capturewheel = true;
+				screenshot.onwheel = "sf = (1.0 + wheeldelta_raw/10.0); scale *= sf; ox*=sf; oy*=sf;";
+								
+				var buttonlayer = krpano.addlayer();
+				buttonlayer.parent = bglayer.path;
+				buttonlayer.type = "container";
+				buttonlayer.flowchildren = "h";
+				buttonlayer.childflowspacing = 8;
+				buttonlayer.align = "bottom";
+				buttonlayer.y = 20;
+				
+				function makebutton(text, infotext, onclick)
+				{
+					var button = krpano.addlayer();
+					button.parent = buttonlayer.path;
+					button.type = "text";
+					button.bgborder = "1 0x777777";
+					button.padding = "6 8";
+					button.textalign = "center";
+					button.text = text;
+					
+					if (onclick)
+					{
+						button.onover = "if(!mouse.down, bgcolor=0xAAAAAA; )";
+						button.onout = "if(!mouse.down, bgcolor=0xFFFFFF; )";
+						button.onup = "if(!hovering, bgcolor=0xFFFFFF; )";
+						button.onclick = onclick;
+					}
+					
+					if (infotext)
+					{
+						var info = krpano.addlayer();
+						info.parent = button.path;
+						info.enabled = false;
+						info.type = "text";
+						info.text = infotext;
+						info.css = "color:white;"
+						info.bg = false;
+						info.txtshadow = "0 1 0 0x000000 1, 1 0 0 0x000000 1";
+						info.align = "top";
+						info.edge = "bottom";
+						info.y = -2;
+					}
+					
+					return button;
+				}
+				
+				var saveasbutton = makebutton("Save Image", null, function()
+				{
+					if (!imageformat)
+					{
+						imageformat = { 
+							type : makescreenshot_format.toLowerCase(),
+							ext : makescreenshot_format == "Jpeg" ? "jpg" : makescreenshot_format.toLowerCase(),
+							quality : makescreenshot_quality/100
+						};
+					}
+								
+					screenshotcanvas.toBlob(function(blob)
+					{
+						krpano.saveLocalFile("screenshot" + (makescreenshot_count++) + "." + imageformat.ext, blob); 
+					}, 
+					"image/" + imageformat.type, imageformat.quality);
+				});
+				
+				var formatbutton = makebutton(makescreenshot_format, "Format", "switch(text, Jpeg, WebP, PNG); updateformat();");
+				formatbutton.updateformat = function(){ makescreenshot_format = formatbutton.text; imageformat=null; };
+				
+				var qualitybutton = makebutton(makescreenshot_quality + "%", "Quality");
+				qualitybutton.cursor = "col-resize";
+				qualitybutton.updatequality = function(){ makescreenshot_quality = parseInt(qualitybutton.text); imageformat=null; };
+				qualitybutton.ondown = "q = parseint(text); asyncloop(pressed, q += 0.1*mouse.dx; q = clamp(q,0,100); text = roundval(q) + '%'; , updatequality() );";
+				
+				var sizebutton = makebutton(type == 'pano' ? imagew : imagew + "x" + imageh, type == 'pano' ? "Cubesize" : "Image Size");
+				sizebutton.editable = true;
+				sizebutton.oneditstop = function()
+				{
+					var newsize = sizebutton.text.trim().split(/[^0-9]+/).filter(Boolean);
+					
+					screenshotwidth = newsize[0];
+					screenshotheight = type == 'pano' ? screenshotwidth : newsize[1] > 0 ? newsize[1] : (screenshotwidth * krpano.stageheight / krpano.stagewidth);
+					
+					bglayer.remove();
+					krpano.makescreenshot(type, screenshotwidth, screenshotheight)
+				}
+				
+				var clipboardbutton = makebutton("Copy to Clipboard", null, function()
+				{
+					// only PNG is supported for copying to clipboard
+					screenshotcanvas.toBlob(function(blob)
+					{
+						navigator.clipboard.write([new ClipboardItem({"image/png":blob})]); 
+					}, 
+					"image/png");
+				});
+			}
+		}
+
+	]]></action>
+	
+</krpano>
