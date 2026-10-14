@@ -9,6 +9,6 @@
   <control wheelmode="distance" dollydistance="0.2" showinfos="true" />
   <webvr postracking="true" />
   <view hlookat="0" vlookat="0" tx="0" ty="0" tz="0" oz="0" fov="75" />
-  <image><splats url="%$modelurl%" onloaded="js(document.getElementById('loading').hidden=true);" scale="1" /></image>
+  <image><splats url="murales.splat" scale="1" /></image>
   <layer name="title" type="text" align="lefttop" x="15" y="15" padding="10" bgcolor="0x111111" bgalpha="0.8" css="color:white;font:16px Arial" text="Real los Murales — krpano" />
 </krpano>

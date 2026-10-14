@@ -2,7 +2,7 @@
 
 Captura Scaniverse en el visor krpano 1.24, preparada para GitHub Pages y Meta Quest 3.
 
-El modelo se descarga en tres partes comprimidas sin pérdida (22 MB), se verifica con SHA-256 y se descomprime en el navegador. krpano muestra una marca de agua de demostración.
+El visor carga directamente murales.splat (14 MB), con los 440,040 puntos del PLY original. El formato almacena colores, opacidad y rotaciones en 8 bits; no incluye armónicos esféricos, que krpano tampoco renderiza en PLY. Evita la descompresión y la copia de un PLY de 109 MB en el navegador. Los archivos comprimidos de la primera versión se conservan. krpano muestra una marca de agua de demostración.
 
 Para publicar: subir esta carpeta a un repositorio y configurar Settings → Pages → Deploy from a branch → main → /(root).
 

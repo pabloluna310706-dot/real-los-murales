@@ -1,17 +1,2 @@
-<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Real los Murales · Quest</title><style>html,body,#pano{margin:0;width:100%;height:100%;background:#151515;overflow:hidden}#loading{position:fixed;inset:0;display:grid;place-content:center;background:#151515;color:#fff;font:18px system-ui;text-align:center;z-index:10000;padding:24px}#loading[hidden]{display:none}</style></head>
-<body><div id="pano"></div><div id="loading"><h1>Real los Murales</h1><p id="status">Descargando la captura…</p></div><script src="viewer/krpano.js"></script><script>
-(async()=>{const status=document.getElementById('status');try{
-const manifest=await fetch('model.json').then(r=>{if(!r.ok)throw Error('No se pudo cargar la captura');return r.json()});
-const buffers=[];
-for(let i=0;i<manifest.parts.length;i++){status.textContent=`Descargando la captura: ${i+1}/${manifest.parts.length}`;const r=await fetch(manifest.parts[i]);if(!r.ok)throw Error('Falló la descarga');buffers.push(await r.arrayBuffer());}
-status.textContent='Preparando la escena…';
-const decompressed=new Blob(buffers).stream().pipeThrough(new DecompressionStream('gzip'));
-const data=await new Response(decompressed).arrayBuffer();
-if(data.byteLength!==manifest.bytes)throw Error('Descarga incompleta');
-const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');if(hash!==manifest.sha256)throw Error('La verificación del archivo falló');
-const modelurl=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}))+'#murales.ply';
-document.getElementById('loading').hidden=true;
-embedpano({xml:'murales.xml',target:'pano',html5:'only',webglsettings:{antialias:false},initvars:{modelurl},onerror:()=>{document.getElementById('loading').hidden=false;status.textContent='No se pudo iniciar el visor.'}});
-}catch(e){status.textContent=e.message+' · Recarga la página para reintentar.'}})();
-</script></body></html>
+﻿<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Real los Murales · Quest</title><style>html,body,#pano{margin:0;width:100%;height:100%;background:#151515;overflow:hidden}</style></head><body><div id="pano"></div><script src="viewer/krpano.js"></script><script>embedpano({xml:'murales.xml?v=2',target:'pano',html5:'only',webglsettings:{antialias:false}});</script></body></html>
