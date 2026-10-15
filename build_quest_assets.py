@@ -36,6 +36,8 @@ far = source[distance > 100]
 rng = np.random.default_rng(42)
 selection = np.sort(rng.choice(len(near), size=min(220000, len(near)), replace=False))
 near[selection].tofile(ROOT / "murales-quest.splat")
+compat_selection = np.sort(rng.choice(len(near), size=min(80000, len(near)), replace=False))
+near[compat_selection].tofile(ROOT / "murales-compat.splat")
 
 accum = np.zeros((HEIGHT, WIDTH, 3), dtype=np.float32)
 weights = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
@@ -74,4 +76,4 @@ for _ in range(6):
 
 pixels = np.clip(accum / np.maximum(weights[:, :, None], 1e-6), 0, 255).astype(np.uint8)
 write_png(ROOT / "murales-background.png", pixels)
-print(f"Foreground: {len(near):,} -> {len(selection):,}; panorama splats: {len(far):,}; uncovered pixels: {(weights < .01).sum():,}")
+print(f"Foreground: {len(near):,} -> {len(selection):,} normal / {len(compat_selection):,} compat; panorama splats: {len(far):,}; uncovered pixels: {(weights < .01).sum():,}")

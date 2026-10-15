@@ -1,0 +1,16 @@
+<krpano version="1.24">
+  <include url="viewer/plugins/webvr.xml" />
+  <include url="viewer/plugins/controls3d.xml" />
+  <include url="viewer/plugins/vr_and_anaglyph_buttons.xml" />
+  <display depthbuffer="false" depthnear="0.05" depthfar="100">
+    <splats rendermode="standard" sortmode="distance" streaming="false" />
+  </display>
+  <control wheelmode="distance" dollydistance="0.2" showinfos="true" />
+  <webvr postracking="true" />
+  <view hlookat="160" vlookat="25" tx="0" ty="0" tz="0" oz="0" fov="75" />
+  <image objectsize="0">
+    <preview type="SPHERE" url="murales-background.png" />
+    <splats url="murales-compat.splat" scale="1" />
+  </image>
+  <layer name="title" type="text" align="lefttop" x="15" y="15" padding="10" bgcolor="0x111111" bgalpha="0.8" css="color:white;font:16px Arial" text="Real los Murales - Quest" />
+</krpano>

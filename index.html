@@ -1,2 +1,42 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Real los Murales · Quest</title><style>html,body,#pano{margin:0;width:100%;height:100%;background:#151515;overflow:hidden}</style></head><body><div id="pano"></div><script src="viewer/krpano.js"></script><script>embedpano({xml:'murales.xml?v=4',target:'pano',html5:'only',webglsettings:{antialias:false}});</script></body></html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Real los Murales - Quest</title>
+  <style>
+    html,body,#pano{margin:0;width:100%;height:100%;background:#151515;overflow:hidden}
+    #status{position:absolute;z-index:1000;top:8px;right:8px;max-width:50vw;padding:7px 10px;background:#111c;color:white;font:13px Arial}
+    #switch{position:absolute;z-index:1000;bottom:14px;left:50%;transform:translateX(-50%);padding:8px 12px;background:#222d;color:white;border:1px solid #aaa;border-radius:6px;font:14px Arial;text-decoration:none;white-space:nowrap}
+  </style>
+</head>
+<body>
+  <div id="pano"></div>
+  <div id="status">Iniciando visor...</div>
+  <a id="switch" href="?mode=full&amp;v=5">Probar calidad completa</a>
+  <script src="viewer/krpano.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const full = params.get('mode') === 'full';
+    const status = document.getElementById('status');
+    const switchLink = document.getElementById('switch');
+    switchLink.textContent = full ? 'Probar modo ligero' : 'Probar calidad completa';
+    switchLink.href = full ? '?mode=compat&v=5' : '?mode=full&v=5';
+    window.addEventListener('error', e => { status.textContent = 'Error: ' + (e.message || 'recurso'); });
+    document.addEventListener('webglcontextlost', e => { e.preventDefault(); status.textContent = 'Se detuvo WebGL. Recarga la pagina.'; }, true);
+    embedpano({
+      xml: (full ? 'murales.xml' : 'murales-compat.xml') + '?v=5',
+      target: 'pano', html5: 'only', webglsettings: {antialias:false},
+      onready: function(viewer) {
+        const expected = full ? 220000 : 80000;
+        setInterval(function() {
+          const count = Number(viewer.get('display.splats.debuginfo.splatcount')) || 0;
+          const progress = Math.round(100 * (Number(viewer.get('progress.progress')) || 0));
+          const webgl2 = !!document.createElement('canvas').getContext('webgl2');
+          status.textContent = 'WebGL2: ' + (webgl2 ? 'si' : 'no') + ' | 3D: ' + count.toLocaleString('es') + '/' + expected.toLocaleString('es') + ' | ' + progress + '%';
+        }, 1000);
+      }
+    });
+  </script>
+</body>
+</html>
