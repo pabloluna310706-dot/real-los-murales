@@ -1,11 +1,9 @@
 # Real los Murales
 
-Captura Scaniverse en el visor krpano 1.24, preparada para GitHub Pages y Meta Quest 3.
+Captura de Scaniverse para ver en el navegador de Meta Quest 3 con krpano 1.24.
 
-El visor carga directamente murales.splat (14 MB), con los 440,040 puntos del PLY original. El formato almacena colores, opacidad y rotaciones en 8 bits; no incluye armónicos esféricos, que krpano tampoco renderiza en PLY. Evita la descompresión y la copia de un PLY de 109 MB en el navegador. Los archivos comprimidos de la primera versión se conservan. krpano muestra una marca de agua de demostración.
+El archivo PLY original contiene 440,040 splats. Aproximadamente 10,000 forman una esfera panorámica de fondo a unos 240 metros del origen. La versión Quest convierte esa esfera en `murales-background.png` y conserva 220,000 splats cercanos en `murales-quest.splat` para reducir el trabajo de renderizado estereoscópico. El fondo evita las zonas negras que aparecían cuando se retiraban los splats distantes sin reemplazarlos.
 
-Para publicar: subir esta carpeta a un repositorio y configurar Settings → Pages → Deploy from a branch → main → /(root).
+`build_quest_assets.py` genera los dos archivos a partir de `murales.splat`, que se conserva como copia compacta completa. krpano muestra una marca de agua de demostración hasta que se use una licencia.
 
-Para Quest: abrir la URL HTTPS en Meta Quest Browser y pulsar el icono VR. La reproducción en el dispositivo aún no se ha probado.
-
-La captura y el sitio serán accesibles públicamente al publicarlos en GitHub Pages.
+Abre la URL HTTPS de GitHub Pages en Meta Quest Browser y pulsa el icono VR. La reproducción en el dispositivo aún debe comprobarse allí.
